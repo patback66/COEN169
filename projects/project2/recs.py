@@ -120,7 +120,7 @@ def cosine_sim(user_id, movie_id):
             cur_user_average += rec[2]
             #update the movie rating for the current user
             cur_user[rec[1]] = rec[2]
-            ratingCount += 1
+            rating_count += 1
     cur_user_average = cur_user_average/rating_count
 
     #calculate the k most similar users
@@ -192,7 +192,7 @@ def algo_driver(algo):
                 rating = custom(rec[0], rec[1]) # userid, movieid
             #update with the predicted rating
             USER_RATINGS[index][2] = rating
-            print rating
+            #print rating
 
 def main():
     """
