@@ -5,6 +5,7 @@
     This file takes tab delimited txt files for users and their movie ratings.
     Based on the users and ratings, recommendations are given.
 """
+#pin 3224592822747566
 import csv
 import math
 
@@ -91,6 +92,11 @@ def cosine_calc(user1, user2):
     # length of vector = sqrt(A[0]*A[0] + A[1]*A[1] + ... + A[n]*A[n])
     len_1 = math.sqrt(float(sum(user1[i] * user1[i] for i in range(len(user1)))))
     len_2 = math.sqrt(float(sum(user2[j] * user2[j] for j in range(len(user2)))))
+
+    #vectors of length 0 break, aren't relevant
+    if len_1 == 0 or len_2 == 0:
+        return 0
+
     return float(dot_product / (len_1 * len_2))
 
 # Cosine similarity = dot(d1,d2)/(|d1|*|d2|)
@@ -103,12 +109,13 @@ def cosine_sim(user_id, movie_id):
         k(num_similar) users to the given user
     """
     global TRAIN_RECS
-    num_similar = 10 # use this many similar users
+    global USER_RATINGS
+    num_similar = 100 # use this many similar users
     rating = 0
     # rel_user[user][0] = cosine_similarity value
     relevant_users = [[0 for rating in range(REC_COL_MOVIES+1)] for user in range(num_similar)]
     #initialize movie ratings for calculating similarity later
-    cur_user = [0 for movies in range(REC_COL_MOVIES)]
+    cur_user = []
     test_movies = []
 
     #calculate the average for current user -> user_id
@@ -119,22 +126,40 @@ def cosine_sim(user_id, movie_id):
         if rec[0] == user_id and rec[2] != 0: #for our user
             cur_user_average += rec[2]
             #update the movie rating for the current user
-            cur_user[rec[1]] = rec[2]
+            #cur_user[rec[1]] = rec[2]
+            cur_user.append(rec[2]) # save movie ratings for user
             rating_count += 1
-    cur_user_average = cur_user_average/rating_count
+            test_movies.append(rec[1]) # save the relevant movie id
+    cur_user_average = round(cur_user_average/rating_count)
+
+    #calculate the user's standard deviation
+    cur_user_std_dev = 0
+    for rating in cur_user:
+        cur_user_std_dev += (rating - cur_user_average) * (rating - cur_user_average)
+    cur_user_std_dev = math.sqrt(cur_user_std_dev)
 
     #calculate the k most similar users
     for index, user in enumerate(TRAIN_RECS):
         #user has string of ratings
         #compute cosine similarity
-        w_a_u = cosine_calc(cur_user, user)
+        #only look at co-rated movies
+        rel_user = []
+        for item in test_movies: #get the relevant movie ratings
+            rel_user.append(TRAIN_RECS[index][item-1])
+            #movie id's 1-1000 -> -1 for index
+        w_a_u = cosine_calc(cur_user, rel_user)
 
         #compare against other similar users
         #keep only the k(num_similar) most relevant
-        for index in range(len(relevant_users)):
-            if w_a_u > relevant_users[index][0]: #compare to other cosine sim
-                relevant_users[index] = [w_a_u] + user
-                break
+        saved_index = -1
+        for idx in range(len(relevant_users)):
+            if w_a_u > relevant_users[idx][0]: #compare to other cosine sim
+                saved_index = idx
+
+        #save the more similar user
+        if saved_index != -1:
+            relevant_users[saved_index] = [w_a_u] + rel_user
+
 
     #now we have the k(num_similar) most similar users
     #calculate the new predicted rating
@@ -145,11 +170,24 @@ def cosine_sim(user_id, movie_id):
     for index, rec in enumerate(relevant_users):
         # w_a_u = rec[0]
         # r_u_i = rec[movie_id]
-        numerator += rec[0] * rec[movie_id]
-        denominator += rec[0]
+        #weighted average of all
+        for rating in rec:
+            numerator += rec[0] * rating
+            denominator += rec[0]
 
     #round the final result for a nice number
-    rating = round(numerator / denominator)
+    if denominator != 0:
+        rating = numerator / denominator
+    if rating < 1 and rating > 0:
+        rating = math.ceil(rating)
+    elif rating == 0 or rating == 0.0:
+        #not enough hits to calc a rating
+        #use the current user's average instead
+        rating = cur_user_average
+    else:
+        rating = round(rating)
+
+    rating = int(rating) # don't want the float
     return rating
 
 def item_cos(user_id, movie_id):
